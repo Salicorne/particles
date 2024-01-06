@@ -172,11 +172,11 @@ func (app *App) update() {
 }
 
 func (app *App) render() {
-	drawRect(app.ctx, "black", vec2i{}, app.size)
+	drawRect(app.ctx, "#ddd", vec2i{}, app.size)
 
 	for color := range app.entities {
 		for i := range app.entities[color] {
-			drawRect(app.ctx, color, app.entities[color][i].pos.tovec2i(), vec2i{4, 4})
+			drawRect(app.ctx, color, app.entities[color][i].pos.tovec2i(), vec2i{6, 6})
 		}
 	}
 }
