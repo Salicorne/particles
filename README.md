@@ -14,3 +14,4 @@ The result of this code can be viewed here: [salicorne.github.io/particles](http
 - [ ] Random seed definition
 - [ ] Export and import of settings
 - [ ] Fullscreen mode
+- [ ] React to mouse events

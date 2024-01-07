@@ -1,10 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"math"
 	"math/rand"
+	"strings"
+	"sync"
 	"syscall/js"
 )
 
@@ -24,11 +28,11 @@ type entity struct {
 	speed  vec2f
 }
 
-type rule struct {
-	color1      string
-	color2      string
-	force       float64
-	effectRange float64
+type Rule struct {
+	Color1      string  `json:"c1,omitempty"`
+	Color2      string  `json:"c2,omitempty"`
+	Force       float64 `json:"f,omitempty"`
+	EffectRange float64 `json:"r,omitempty"`
 }
 
 type App struct {
@@ -36,9 +40,15 @@ type App struct {
 	window   js.Value
 	size     vec2i
 	entities map[string][]*entity
-	rules    []rule
+	rules    []Rule
 
 	globalLoss float64
+	mutex      sync.Mutex
+}
+
+type Settings struct {
+	Colors map[string]uint `json:"c,omitempty"`
+	Rules  []Rule          `json:"r,omitempty"`
 }
 
 func newApp() (*App, error) {
@@ -77,7 +87,7 @@ func newApp() (*App, error) {
 		window:     jsWindow,
 		size:       vec2i{x: rect.Get("width").Int(), y: rect.Get("height").Int()},
 		entities:   map[string][]*entity{},
-		rules:      []rule{},
+		rules:      []Rule{},
 		globalLoss: 0.98,
 	}, nil
 }
@@ -100,65 +110,94 @@ func (app *App) addEntity(color string) {
 	})
 }
 
-func (app *App) addRule(color1, color2 string, force float64) {
-	app.rules = append(app.rules, rule{color1: color1, color2: color2, force: force, effectRange: float64(app.size.x / 5.0)})
+func (app *App) addRule(color1, color2 string, force float64, effectRange float64) {
+	app.rules = append(app.rules, Rule{Color1: color1, Color2: color2, Force: force, EffectRange: effectRange})
 }
 
-func (app *App) initialize() {
-	for i := 0; i < 20; i++ {
-		app.addEntity("red")
-	}
-	for i := 0; i < 50; i++ {
-		app.addEntity("blue")
+func (app *App) initialize(settings *Settings) {
+	app.mutex.Lock()
+
+	// Reset settings
+	app.entities = map[string][]*entity{}
+	app.rules = []Rule{}
+
+	for c := range settings.Colors {
+		for i := uint(0); i < settings.Colors[c]; i++ {
+			app.addEntity(c)
+		}
 	}
 
-	app.addRule("red", "blue", -0.2)
-	app.addRule("blue", "blue", -0.1)
-	app.addRule("red", "red", 0.8)
+	for r := range settings.Rules {
+		app.addRule(settings.Rules[r].Color1, settings.Rules[r].Color2, settings.Rules[r].Force, settings.Rules[r].EffectRange)
+	}
+
+	app.mutex.Unlock()
+}
+
+func (app *App) getSettings() *Settings {
+	s := &Settings{
+		Colors: map[string]uint{},
+		Rules:  []Rule{},
+	}
+
+	for i := range app.entities {
+		s.Colors[i] = uint(len(app.entities[i]))
+	}
+
+	for i := range app.rules {
+		s.Rules = append(s.Rules, Rule{
+			Color1:      app.rules[i].Color1,
+			Color2:      app.rules[i].Color2,
+			Force:       app.rules[i].Force,
+			EffectRange: app.rules[i].EffectRange,
+		})
+	}
+
+	return s
 }
 
 func (app *App) update() {
 	//* Apply rules
 	for u := range app.rules {
-		for i := range app.entities[app.rules[u].color1] {
+		for i := range app.entities[app.rules[u].Color1] {
 			force := vec2f{}
-			for j := range app.entities[app.rules[u].color2] {
-				if app.rules[u].color1 != app.rules[u].color2 || i != j {
-					dx := app.entities[app.rules[u].color1][i].pos.x - app.entities[app.rules[u].color2][j].pos.x
-					dy := app.entities[app.rules[u].color1][i].pos.y - app.entities[app.rules[u].color2][j].pos.y
+			for j := range app.entities[app.rules[u].Color2] {
+				if app.rules[u].Color1 != app.rules[u].Color2 || i != j {
+					dx := app.entities[app.rules[u].Color1][i].pos.x - app.entities[app.rules[u].Color2][j].pos.x
+					dy := app.entities[app.rules[u].Color1][i].pos.y - app.entities[app.rules[u].Color2][j].pos.y
 					dist := math.Sqrt(dx*dx + dy*dy)
 
-					if dist < app.rules[u].effectRange {
-						force.x -= app.rules[u].force / dist * dx
-						force.y -= app.rules[u].force / dist * dy
+					if dist < app.rules[u].EffectRange {
+						force.x -= app.rules[u].Force / dist * dx
+						force.y -= app.rules[u].Force / dist * dy
 					}
 				}
 			}
 
-			app.entities[app.rules[u].color1][i].speed.x *= app.globalLoss
-			app.entities[app.rules[u].color1][i].speed.y *= app.globalLoss
-			app.entities[app.rules[u].color1][i].speed.x += force.x
-			app.entities[app.rules[u].color1][i].speed.y += force.y
+			app.entities[app.rules[u].Color1][i].speed.x *= app.globalLoss
+			app.entities[app.rules[u].Color1][i].speed.y *= app.globalLoss
+			app.entities[app.rules[u].Color1][i].speed.x += force.x
+			app.entities[app.rules[u].Color1][i].speed.y += force.y
 
-			app.entities[app.rules[u].color1][i].newPos.x += app.entities[app.rules[u].color1][i].speed.x
-			app.entities[app.rules[u].color1][i].newPos.y += app.entities[app.rules[u].color1][i].speed.y
+			app.entities[app.rules[u].Color1][i].newPos.x += app.entities[app.rules[u].Color1][i].speed.x
+			app.entities[app.rules[u].Color1][i].newPos.y += app.entities[app.rules[u].Color1][i].speed.y
 
 			// clamp
-			if app.entities[app.rules[u].color1][i].newPos.x < 0 {
-				app.entities[app.rules[u].color1][i].newPos.x = 0
-				app.entities[app.rules[u].color1][i].speed.x *= -1
+			if app.entities[app.rules[u].Color1][i].newPos.x < 0 {
+				app.entities[app.rules[u].Color1][i].newPos.x = 0
+				app.entities[app.rules[u].Color1][i].speed.x *= -1
 			}
-			if app.entities[app.rules[u].color1][i].newPos.x > float64(app.size.x) {
-				app.entities[app.rules[u].color1][i].newPos.x = float64(app.size.x)
-				app.entities[app.rules[u].color1][i].speed.x *= -1
+			if app.entities[app.rules[u].Color1][i].newPos.x > float64(app.size.x) {
+				app.entities[app.rules[u].Color1][i].newPos.x = float64(app.size.x)
+				app.entities[app.rules[u].Color1][i].speed.x *= -1
 			}
-			if app.entities[app.rules[u].color1][i].newPos.y < 0 {
-				app.entities[app.rules[u].color1][i].newPos.y = 0
-				app.entities[app.rules[u].color1][i].speed.y *= -1
+			if app.entities[app.rules[u].Color1][i].newPos.y < 0 {
+				app.entities[app.rules[u].Color1][i].newPos.y = 0
+				app.entities[app.rules[u].Color1][i].speed.y *= -1
 			}
-			if app.entities[app.rules[u].color1][i].newPos.y > float64(app.size.y) {
-				app.entities[app.rules[u].color1][i].newPos.y = float64(app.size.y)
-				app.entities[app.rules[u].color1][i].speed.y *= -1
+			if app.entities[app.rules[u].Color1][i].newPos.y > float64(app.size.y) {
+				app.entities[app.rules[u].Color1][i].newPos.y = float64(app.size.y)
+				app.entities[app.rules[u].Color1][i].speed.y *= -1
 			}
 		}
 	}
@@ -182,8 +221,10 @@ func (app *App) render() {
 }
 
 func (app *App) run() {
+	app.mutex.Lock()
 	app.update()
 	app.render()
+	app.mutex.Unlock()
 
 	app.window.Call("requestAnimationFrame", js.FuncOf(func(this js.Value, args []js.Value) any {
 		app.run()
@@ -191,19 +232,90 @@ func (app *App) run() {
 	}))
 }
 
+var app *App = nil
+
 func main() {
+
 	js.Global().Set("startApp", js.FuncOf(func(this js.Value, args []js.Value) any {
-		log.Println("Hello world !")
-		app, err := newApp()
-		if err != nil {
-			log.Println(err)
-			return err
+		var err error
+
+		if app == nil {
+			app, err = newApp()
+			if err != nil {
+				log.Println(err)
+				return err
+			}
 		}
 
-		app.initialize()
+		settings := &Settings{
+			Colors: map[string]uint{},
+			Rules:  []Rule{},
+		}
+		defaultSettings := &Settings{
+			Colors: map[string]uint{
+				"red":  20,
+				"blue": 20,
+			},
+			Rules: []Rule{
+				//{"red", "blue", -0.2, float64(app.size.x / 5.0)},
+				{"blue", "blue", -0.1, float64(app.size.x / 5.0)},
+				{"red", "red", 0.8, float64(app.size.x / 8.0)},
+				{"red", "blue", 0.5, float64(app.size.x / 5.0)},
+				{"blue", "red", -0.8, float64(app.size.x / 8.0)},
+			},
+		}
+
+		if len(args) > 0 {
+			if !strings.EqualFold(args[0].Type().String(), "string") {
+				log.Printf("startApp expected string, got %s", args[0].Type().String())
+				settings = defaultSettings
+			}
+			if err := json.Unmarshal([]byte(args[0].String()), settings); err != nil {
+				log.Printf("Error parsing settings %s: %s", []byte(args[0].String()), err)
+				settings = defaultSettings
+			}
+		} else {
+			settings = defaultSettings
+		}
+
+		app.initialize(settings)
 		app.run()
 
 		return nil
+	}))
+
+	js.Global().Set("setSettings", js.FuncOf(func(this js.Value, args []js.Value) any {
+		if app != nil {
+			settings := &Settings{
+				Colors: map[string]uint{},
+				Rules:  []Rule{},
+			}
+
+			if len(args) > 0 {
+				if !strings.EqualFold(args[0].Type().String(), "string") {
+					log.Printf("startApp expected string, got %s\n", args[0].Type().String())
+					return nil
+				}
+				if err := json.Unmarshal([]byte(args[0].String()), settings); err != nil {
+					log.Printf("Error parsing settings %s: %s\n", []byte(args[0].String()), err)
+					return nil
+				}
+			} else {
+				log.Println("setSettings expects an argument, got none.")
+				return nil
+			}
+			app.initialize(settings)
+		}
+		return nil
+	}))
+
+	js.Global().Set("getSettings", js.FuncOf(func(this js.Value, args []js.Value) any {
+		b, err := json.Marshal(app.getSettings())
+		if err != nil {
+			log.Printf("Error marshalling settings: %s", err)
+			return nil
+		}
+		return fmt.Sprintf("%s", b)
 	}))
 
 	<-make(chan bool) //wait
