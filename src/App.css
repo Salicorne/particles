@@ -1,0 +1,9 @@
+pre {
+  background-color: #0002;
+  min-width: none;
+  padding: 1em;
+  margin: 1em 0;
+  display: inline-block;
+  font-size: small;
+  font-family: "Lucida Console", Courier, monospace;
+}

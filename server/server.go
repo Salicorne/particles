@@ -9,7 +9,7 @@ import (
 func main() {
 	port := 80
 	log.Printf("Starting web server on port %d", port)
-	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), http.FileServer(http.Dir("./web"))); err != nil {
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), http.FileServer(http.Dir("./build"))); err != nil {
 		log.Fatalf("Failed to start server: %s", err)
 	}
 }
