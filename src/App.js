@@ -24,14 +24,14 @@ function InfoModal({ show, handleClose }) {
   )
 }
 
-function SettingsModal({ show, handleClose }) {
+function SettingsModal({ show, handleClose, settings }) {
   return (
     <Modal show={show} onHide={handleClose}>
       <Modal.Header closeButton>
         <Modal.Title>Settings</Modal.Title>
       </Modal.Header>
       <Modal.Body>
-
+        {settings}
       </Modal.Body>
       <Modal.Footer>
         <Button variant="secondary" onClick={handleClose}>Cancel</Button>
@@ -42,6 +42,7 @@ function SettingsModal({ show, handleClose }) {
 }
 
 function App() {
+  //* Initialize React state
   const [showSettings, setShowSettings] = useState(false);
   const handleCloseSettings = () => setShowSettings(false);
   const handleShowSettings = () => setShowSettings(true);
@@ -50,33 +51,35 @@ function App() {
   const handleCloseInfo = () => setShowInfo(false);
   const handleShowInfo = () => setShowInfo(true);
 
-  let appSettings = { "c": { "#FF0000": 20, "#0000FF": 30 }, "r": [{ "c1": "#0000FF", "c2": "#0000FF", "f": -0.1, "r": 400 }, { "c1": "#FF0000", "c2": "#FF0000", "f": 0.8, "r": 200 }, { "c1": "#FF0000", "c2": "#0000FF", "f": 0.5, "r": 400 }, { "c1": "#0000FF", "c2": "#FF0000", "f": -0.8, "r": 200 }] }
+  const [appSettings, setAppSettings] = useState("")
 
-  const fetchWasm = () => {
-    console.log("Fetxhing wasm app...")
-  }
+  //* Initialize WASM app
+  require("./wasm_exec");
+  const go = new window.Go();
+  WebAssembly.instantiateStreaming(fetch("/app.wasm", { cache: "no-store" }), go.importObject).then((result) => {
+    go.run(result.instance);
+    window.startApp();
+    setAppSettings(window.getSettings())
+  })
 
   return (
     <>
-      <Container id="ui" data-bs-theme="dark">
+      <Container id="ui">
 
         <Stack direction="horizontal" gap={3}>
           <Button className='bi bi-gear-fill' onClick={handleShowSettings}></Button>
           <Button className='bi bi-info' onClick={handleShowInfo}></Button>
         </Stack>
 
-        <pre className='font-monospace'>debug: {JSON.stringify(appSettings, null, 2)}</pre>
+        <pre className='font-monospace'>debug: {appSettings === "" ? "{}" : JSON.stringify(JSON.parse(appSettings), null, 2)}</pre>
 
         {/* Settings modal */}
-        <SettingsModal show={showSettings} handleClose={handleCloseSettings} />
+        <SettingsModal show={showSettings} handleClose={handleCloseSettings} settings={appSettings} />
 
         {/* Info modal */}
         <InfoModal show={showInfo} handleClose={handleCloseInfo} />
 
       </Container>
-
-      {/* Particles canvas */}
-      <canvas id="canvas" onLoadedData={fetchWasm}>HTML5 canvas is not supported on this browser</canvas>
     </>
   );
 }
