@@ -273,11 +273,11 @@ func main() {
 			Populations: map[PopulationId]Population{
 				"a": {
 					Count: 20,
-					Color: "blue",
+					Color: "#0000ff",
 				},
 				"b": {
 					Count: 20,
-					Color: "red",
+					Color: "#ff0000",
 				},
 			},
 			Rules: []Rule{
