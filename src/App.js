@@ -8,6 +8,7 @@ import InputGroup from 'react-bootstrap/InputGroup';
 import Form from 'react-bootstrap/Form';
 import Tabs from 'react-bootstrap/Tabs';
 import Tab from 'react-bootstrap/tab';
+import Table from 'react-bootstrap/table';
 
 import './App.css';
 
@@ -19,7 +20,7 @@ function InfoModal({ show, handleClose }) {
       </Modal.Header>
       <Modal.Body>
         <h3>What is this ?</h3>
-        <p>"Particles" is a Go implementation of the "Clusters" concept explained by <a href="https://vimeo.com/222974687" target="_blank" rel="noreferrer">Jeffrey Ventrella</a>). Basically, the user can create a set of populations defined by a color, each population has a quantity of individuals. Each individual has a 2d position in a constrained space. The user can then create rules affecting all individuals of a population &alpha;. A rule specifies that individuals of a population &beta; affects individuals of this population &alpha; (it can be the same) with a force <i>f</i>, and with an effect range. If <i>f</i> &gt; 0 then individuals of &beta; repel individuals of &alpha;, and attract them otherwise. It appears that even a few rules can create interesting results, and complex behaviours can emerge from this algorithm even though not strictly defined in the code. I found this idea inspiring, and this is my attempt to implement it !</p>
+        <p>"Particles" is a Go implementation of the "Clusters" concept explained by <a href="https://vimeo.com/222974687" target="_blank" rel="noreferrer">Jeffrey Ventrella</a>. Basically, the user can create a set of populations defined by a color, each population has a quantity of individuals. Each individual has a 2d position in a constrained space. The user can then create rules affecting all individuals of a population &alpha;. A rule specifies that individuals of a population &beta; affects individuals of this population &alpha; (it can be the same) with a force <i>f</i>, and with an effect range. If <i>f</i> &gt; 0 then individuals of &beta; repel individuals of &alpha;, and attract them otherwise. It appears that even a few rules can create interesting results, and complex behaviours can emerge from this algorithm even though not strictly defined in the code. I found this idea inspiring, and this is my attempt to implement it !</p>
         <h3>How does it work ?</h3>
         <p>The frontend interface is written in Javascript with <a href="https://react.dev/" target="_blank" rel="noreferrer">React</a>, mainly to manage the settings of the simulation. It instanciates and communicates with a Web Assembly application, written in Go. This application manages the particles simulation, and draws them on a Canvas on the page. </p>
       </Modal.Body>
@@ -35,34 +36,24 @@ function InfoModal({ show, handleClose }) {
 }
 
 function randomColor() {
-  return "#"+(Math.floor(Math.random()*16777215)).toString(16);
+  return "#" + (Math.floor(Math.random() * 16777215)).toString(16);
 }
 
 //todo: avoid ascii attacks, use global counter in base52 with several letters instead
 function nextPopulationId(populations) {
   let maxChar = "a".charCodeAt(0);
-  for(let i = 0; i < Object.keys(populations).length; i++) {
-    if(Object.keys(populations)[i].charCodeAt(0) > maxChar) {
+  for (let i = 0; i < Object.keys(populations).length; i++) {
+    if (Object.keys(populations)[i].charCodeAt(0) > maxChar) {
       maxChar = Object.keys(populations)[i].charCodeAt(0);
     }
   }
-  return String.fromCharCode([maxChar+1]);
+  return String.fromCharCode([maxChar + 1]);
 }
 
 function PopulationList({ populations, setPopulations }) {
-/*
-  function onPopulationColorChange(idx, newColor) {
-    setPopulations(Object.keys(populations).map((populationName, i) => {
-      if (i === idx) {
-        return { n: populations[populationName].n, c: newColor };
-      }
-      return populations[populationName];
-    }))
-  }
-*/
   function onPopulationColorChange(populationName, newColor) {
     let newPopulations = {};
-    for(let [k, v] of Object.entries(populations)) {
+    for (let [k, v] of Object.entries(populations)) {
       if (k === populationName) {
         newPopulations[k] = { n: populations[populationName].n, c: newColor };
       } else {
@@ -73,7 +64,7 @@ function PopulationList({ populations, setPopulations }) {
   }
   function onPopulationNumberChange(populationName, newNumber) {
     let newPopulations = {};
-    for(let [k, v] of Object.entries(populations)) {
+    for (let [k, v] of Object.entries(populations)) {
       if (k === populationName) {
         newPopulations[k] = { n: newNumber, c: populations[populationName].c };
       } else {
@@ -84,17 +75,17 @@ function PopulationList({ populations, setPopulations }) {
   }
   function deletePopulation(populationName) {
     let newPopulations = {};
-    for(let i of Object.keys(populations)) {
+    for (let i of Object.keys(populations)) {
       if (i !== populationName) {
         newPopulations[i] = populations[i];
-      } 
+      }
     }
     setPopulations(newPopulations);
   }
 
   function addPopulation() {
-    let newPopulations = {...populations};
-    newPopulations[nextPopulationId(populations)] = {n: 10, c: randomColor()};
+    let newPopulations = { ...populations };
+    newPopulations[nextPopulationId(populations)] = { n: 10, c: randomColor() };
     setPopulations(newPopulations)
   }
 
@@ -118,13 +109,118 @@ function PopulationList({ populations, setPopulations }) {
   );
 }
 
+function RuleCell({ rulesArray, setRulesArray, populations, rowIdx, colIdx }) {
+  let rule = rulesArray[rowIdx * Object.keys(populations).length + colIdx];
+
+  function ruleToColor(force) { // 1 => green; 0 => white; -1 => red. Hacky lazy way to program a gradient, with base color + alpha...
+    if (force === null) {
+      return "#ffffff";
+    }
+    let color = "#ff0000";
+    if (force > 0) {
+      color = "#00ff00";
+    }
+    return color + Math.floor(255 * Math.abs(force)).toString(16).padStart(2, '0');
+  }
+
+  function onScroll(idx, rulesArray, setRulesArray, delta) {
+    setRulesArray(rulesArray.map((val, i) => {
+      if (i === idx) {
+        return Math.max(-1, Math.min(val + delta * -0.1, 1));
+      }
+      return val;
+    }));
+  }
+
+  return <td key={rowIdx + "-" + colIdx} style={{ "backgroundColor": ruleToColor(rule) }} onWheel={e => onScroll(rowIdx * Object.keys(populations).length + colIdx, rulesArray, setRulesArray, Math.max(-1, Math.min(e.deltaY, 1)))}>&nbsp;</td>
+}
+
+function RulesSettings({ populations, rulesArray, setRulesArray }) {
+  function getRow(rulesArray, setRulesArray, populations, rowName, rowIdx) {
+    let rowCells = Object.keys(populations).map((populationName, i) => <RuleCell rulesArray={rulesArray} setRulesArray={setRulesArray} populations={populations} rowIdx={rowIdx} colIdx={i} key={rowIdx + "-" + i} />)
+    return (
+      <tr key={"r" + rowName}>
+        <td style={{ "backgroundColor": populations[rowName].c }}></td>
+        {rowCells}
+      </tr>
+    )
+  }
+
+  let tableHeader = Object.keys(populations).map((populationName) => <th key={"c" + populationName} style={{ "backgroundColor": populations[populationName].c }}></th>)
+  let tableRows = Object.keys(populations).map((populationName, i) => getRow(rulesArray, setRulesArray, populations, populationName, i))
+
+  return (
+    <Table bordered size='sm'>
+      <thead>
+        <tr>
+          <th>#</th>
+          {tableHeader}
+        </tr>
+      </thead>
+      <tbody>
+        {tableRows}
+      </tbody>
+    </Table>
+  )
+}
+
 function SettingsModal({ show, handleClose, settings, setAppSettingsStr }) {
   let appSettings = settings !== "" ? JSON.parse(settings) : { p: {}, r: [] };
-  let [populations, setPopulations] = useState(appSettings.p);
+  const [populations, setPopulations] = useState(appSettings.p);
+
+  let initialRules = [];
+  for (let c1 of Object.keys(populations)) {
+    for (let c2 of Object.keys(populations)) {
+      let found = false;
+      for (let rule of appSettings.r) {
+        if (rule.c1 === c1 && rule.c2 === c2) {
+          initialRules.push(rule.f);
+          found = true;
+        }
+      }
+      if (!found) {
+        initialRules.push(null);
+      }
+    }
+  }
+  const [rulesArray, setRulesArray] = useState(initialRules);
+
+  function updatePopulations(pop) {
+    setPopulations(pop);
+    let newRules = [];
+    for (let c1 of Object.keys(pop)) {
+      for (let c2 of Object.keys(pop)) {
+        let found = false;
+        for (let rule of appSettings.r) {
+          if (rule.c1 === c1 && rule.c2 === c2) {
+            newRules.push(rule.f);
+            found = true;
+          }
+        }
+        if (!found) {
+          newRules.push(null);
+        }
+      }
+    }
+    setRulesArray(newRules);
+  }
 
   function saveSettings() {
-    setAppSettingsStr(JSON.stringify({ p: populations, r: appSettings.r }));
-    window.setSettings(JSON.stringify({ p: populations, r: appSettings.r }));
+    let newRules = [];
+    let idx = 0;
+    for (let c1 of Object.keys(populations)) {
+      for (let c2 of Object.keys(populations)) {
+        newRules.push({
+          "c1": c1,
+          "c2": c2,
+          "r": 300,
+          "f": rulesArray[idx]
+        });
+        idx++;
+      }
+    }
+    setAppSettingsStr(JSON.stringify({ p: populations, r: newRules }));
+    window.setSettings(JSON.stringify({ p: populations, r: newRules }));
     handleClose();
   }
 
@@ -136,11 +232,13 @@ function SettingsModal({ show, handleClose, settings, setAppSettingsStr }) {
       <Modal.Body>
         <Tabs defaultActiveKey="populations" id="uncontrolled-tab-example" className="mb-3">
           <Tab eventKey="populations" title="Populations">
-          <PopulationList populations={populations} setPopulations={setPopulations} />
+            <PopulationList populations={populations} setPopulations={updatePopulations} />
           </Tab>
           <Tab eventKey="rules" title="Rules">
-            todo
+            <RulesSettings populations={populations} rulesArray={rulesArray} setRulesArray={setRulesArray} />
           </Tab>
+          <Tab eventKey="presets" title="Presets" disabled={true} />
+          <Tab eventKey="import" title="Import" disabled={true} />
         </Tabs>
       </Modal.Body>
       <Modal.Footer>

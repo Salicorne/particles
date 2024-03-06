@@ -19,8 +19,10 @@ The result of this code can be viewed here: [salicorne.github.io/particles](http
 
 - [x] Core algorithm implementation
 - [x] User interface with bootstrap and React
-- [ ] Definition of rules from the UI
+- [x] Definition of rules from the UI
+- [ ] Set global speed
 - [ ] Random seed definition
 - [ ] Export and import of settings
+- [ ] Presets
 - [ ] Fullscreen mode
 - [ ] React to mouse events
