@@ -49,6 +49,7 @@ type App struct {
 	entities    map[PopulationId][]*entity
 	populations map[PopulationId]Population
 	rules       []Rule
+	globalSpeed float64
 
 	globalLoss float64
 	mutex      sync.Mutex
@@ -57,6 +58,7 @@ type App struct {
 type Settings struct {
 	Populations map[PopulationId]Population `json:"p,omitempty"`
 	Rules       []Rule                      `json:"r,omitempty"`
+	GlobalSpeed float64                     `json:"s"`
 }
 
 func newApp() (*App, error) {
@@ -98,6 +100,7 @@ func newApp() (*App, error) {
 		populations: map[PopulationId]Population{},
 		rules:       []Rule{},
 		globalLoss:  0.98,
+		globalSpeed: 1,
 	}, nil
 }
 
@@ -131,6 +134,7 @@ func (app *App) initialize(settings *Settings) {
 	// Reset settings
 	app.entities = map[PopulationId][]*entity{}
 	app.rules = []Rule{}
+	app.globalSpeed = settings.GlobalSpeed
 
 	for c := range settings.Populations {
 		app.populations[c] = Population{
@@ -153,6 +157,7 @@ func (app *App) getSettings() *Settings {
 	s := &Settings{
 		Populations: map[PopulationId]Population{},
 		Rules:       []Rule{},
+		GlobalSpeed: app.globalSpeed,
 	}
 
 	for i := range app.populations {
@@ -186,8 +191,8 @@ func (app *App) update() {
 					dist := math.Sqrt(dx*dx + dy*dy)
 
 					if dist < app.rules[u].EffectRange {
-						force.x -= app.rules[u].Force / dist * dx
-						force.y -= app.rules[u].Force / dist * dy
+						force.x -= (app.rules[u].Force / dist * dx) * app.globalSpeed
+						force.y -= (app.rules[u].Force / dist * dy) * app.globalSpeed
 					}
 				}
 			}
@@ -282,11 +287,12 @@ func main() {
 			},
 			Rules: []Rule{
 				//{"red", "blue", -0.2, float64(app.size.x / 5.0)},
-				{"a", "a", -0.1, float64(app.size.x / 5.0)},
-				{"b", "b", 0.8, float64(app.size.x / 8.0)},
-				{"b", "a", 0.5, float64(app.size.x / 5.0)},
-				{"a", "b", -0.8, float64(app.size.x / 8.0)},
+				{"a", "a", -0.1, 300},
+				{"b", "b", 0.8, 300},
+				{"b", "a", 0.5, 300},
+				{"a", "b", -0.8, 300},
 			},
+			GlobalSpeed: 1,
 		}
 
 		if len(args) > 0 {
@@ -313,6 +319,7 @@ func main() {
 			settings := &Settings{
 				Populations: map[PopulationId]Population{},
 				Rules:       []Rule{},
+				GlobalSpeed: 1.0,
 			}
 
 			if len(args) > 0 {

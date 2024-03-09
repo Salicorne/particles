@@ -9,6 +9,9 @@ import Form from 'react-bootstrap/Form';
 import Tabs from 'react-bootstrap/Tabs';
 import Tab from 'react-bootstrap/tab';
 import Table from 'react-bootstrap/table';
+import FormRange from 'react-bootstrap/FormRange'
+import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
+import Popover from 'react-bootstrap/Popover';
 
 import './App.css';
 
@@ -135,7 +138,7 @@ function RuleCell({ rulesArray, setRulesArray, populations, rowIdx, colIdx }) {
   return <td key={rowIdx + "-" + colIdx} style={{ "backgroundColor": ruleToColor(rule) }} onWheel={e => onScroll(rowIdx * Object.keys(populations).length + colIdx, rulesArray, setRulesArray, Math.max(-1, Math.min(e.deltaY, 1)))}>&nbsp;</td>
 }
 
-function RulesSettings({ populations, rulesArray, setRulesArray }) {
+function RulesSettings({ populations, rulesArray, setRulesArray, speed, setSpeed }) {
   function getRow(rulesArray, setRulesArray, populations, rowName, rowIdx) {
     let rowCells = Object.keys(populations).map((populationName, i) => <RuleCell rulesArray={rulesArray} setRulesArray={setRulesArray} populations={populations} rowIdx={rowIdx} colIdx={i} key={rowIdx + "-" + i} />)
     return (
@@ -149,24 +152,45 @@ function RulesSettings({ populations, rulesArray, setRulesArray }) {
   let tableHeader = Object.keys(populations).map((populationName) => <th key={"c" + populationName} style={{ "backgroundColor": populations[populationName].c }}></th>)
   let tableRows = Object.keys(populations).map((populationName, i) => getRow(rulesArray, setRulesArray, populations, populationName, i))
 
+  const infoPopover = (
+    <Popover>
+      <Popover.Body>You can change the forces by using your mouse wheel on each matrix cell !</Popover.Body>
+    </Popover>
+  )
+
   return (
-    <Table bordered size='sm'>
-      <thead>
-        <tr>
-          <th>#</th>
-          {tableHeader}
-        </tr>
-      </thead>
-      <tbody>
-        {tableRows}
-      </tbody>
-    </Table>
+    <Form>
+      <Form.Group>
+        <Form.Label>Population relations</Form.Label>
+        <OverlayTrigger trigger="click" placement='right' overlay={infoPopover}>
+          <Button size='sm' variant='outline-info'><span className="bi bi-info-circle"></span></Button>
+        </OverlayTrigger>
+        <br />
+        <Table bordered size='sm'>
+          <thead>
+            <tr>
+              <th>#</th>
+              {tableHeader}
+            </tr>
+          </thead>
+          <tbody>
+            {tableRows}
+          </tbody>
+        </Table>
+      </Form.Group>
+
+      <Form.Group>
+        <Form.Label>Global speed: {speed}</Form.Label>
+        <FormRange min={0.01} max={1.2} defaultValue={speed} step={0.01} onChange={(e) => setSpeed(e.target.value)}></FormRange >
+      </Form.Group>
+    </Form>
   )
 }
 
 function SettingsModal({ show, handleClose, settings, setAppSettingsStr }) {
-  let appSettings = settings !== "" ? JSON.parse(settings) : { p: {}, r: [] };
+  let appSettings = settings !== "" ? JSON.parse(settings) : { p: {}, r: [], s: 1.0 };
   const [populations, setPopulations] = useState(appSettings.p);
+  const [speed, setSpeed] = useState(appSettings.s);
 
   let initialRules = [];
   for (let c1 of Object.keys(populations)) {
@@ -219,8 +243,8 @@ function SettingsModal({ show, handleClose, settings, setAppSettingsStr }) {
         idx++;
       }
     }
-    setAppSettingsStr(JSON.stringify({ p: populations, r: newRules }));
-    window.setSettings(JSON.stringify({ p: populations, r: newRules }));
+    setAppSettingsStr(JSON.stringify({ p: populations, r: newRules, s: parseFloat(speed) }));
+    window.setSettings(JSON.stringify({ p: populations, r: newRules, s: parseFloat(speed) }));
     handleClose();
   }
 
@@ -235,7 +259,7 @@ function SettingsModal({ show, handleClose, settings, setAppSettingsStr }) {
             <PopulationList populations={populations} setPopulations={updatePopulations} />
           </Tab>
           <Tab eventKey="rules" title="Rules">
-            <RulesSettings populations={populations} rulesArray={rulesArray} setRulesArray={setRulesArray} />
+            <RulesSettings populations={populations} rulesArray={rulesArray} setRulesArray={setRulesArray} speed={speed} setSpeed={setSpeed} />
           </Tab>
           <Tab eventKey="presets" title="Presets" disabled={true} />
           <Tab eventKey="import" title="Import" disabled={true} />
